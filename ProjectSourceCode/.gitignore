@@ -1,0 +1,5 @@
+node_modules/
+package-lock.json
+.env
+init_db.sh
+.DS_Store
