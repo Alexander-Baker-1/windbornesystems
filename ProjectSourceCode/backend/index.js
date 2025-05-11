@@ -1,4 +1,4 @@
-const db = require('../db');
+const db = require('./db');
 
 async function fetchAndStoreBalloons() {
   const useFallback = process.env.NODE_ENV === 'development' || process.env.USE_FAKE_BALLOONS === 'true';
