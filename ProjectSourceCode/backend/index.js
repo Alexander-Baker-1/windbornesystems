@@ -1,28 +1,15 @@
-// ---------------------------------- DEPENDENCIES ----------------------------------------------
 const express = require('express');
 const session = require('express-session');
-const path = require('path');
 const bodyParser = require('body-parser');
-const handlebars = require('express-handlebars');
+const path = require('path');
+const fs = require('fs');
 
-// Local modules
 const db = require('./db');
 const { fetchAndStoreBalloons } = require('./jobs/fetchBalloons');
 
 const app = express();
 
-// ---------------------------------- VIEW CONFIG ----------------------------------------------
-const hbs = handlebars.create({
-  extname: 'hbs',
-  layoutsDir: path.join(__dirname, 'src/views/layouts'),
-  partialsDir: path.join(__dirname, 'src/views/partials'),
-});
-
-app.engine('hbs', hbs.engine);
-app.set('view engine', 'hbs');
-app.set('views', path.join(__dirname, 'src/views'));
-
-// ---------------------------------- MIDDLEWARE ----------------------------------------------
+// Middleware
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
@@ -34,21 +21,40 @@ app.use(
   })
 );
 
-app.use('/static', express.static(path.join(__dirname, 'src/resources')));
+// API routes
+app.use('/api/balloons', require('./routes/balloons'));
 
-// ---------------------------------- ROUTES ----------------------------------------------
-app.get('/', (req, res) => {
-  res.render('pages/home');
+// Run SQL init files
+async function runInitSQL() {
+  try {
+    const createSQL = fs.readFileSync(path.join(__dirname, 'src/init_data/create.sql'), 'utf-8');
+    await db.none(createSQL);
+    console.log('✅ Ran create.sql successfully');
+  } catch (err) {
+    console.error('❌ Failed to run create.sql:', err.message);
+  }
+
+  try {
+    const insertSQL = fs.readFileSync(path.join(__dirname, 'src/init_data/insert.sql'), 'utf-8');
+    if (insertSQL.trim()) {
+      await db.none(insertSQL);
+      console.log('✅ Ran insert.sql successfully');
+    } else {
+      console.log('ℹ️ insert.sql is empty — skipping insert.');
+    }
+  } catch (err) {
+    console.error('❌ Failed to run insert.sql:', err.message);
+  }
+}
+
+// Init + background balloon sync
+runInitSQL().then(() => {
+  fetchAndStoreBalloons();
+  setInterval(fetchAndStoreBalloons, 15 * 60 * 1000);
 });
 
-app.use('/api/balloons', require('./routes/balloons')); // API endpoint
-
-// ---------------------------------- REAL-TIME DATA INGEST ----------------------------------------------
-fetchAndStoreBalloons(); // Initial pull on startup
-setInterval(fetchAndStoreBalloons, 15 * 60 * 1000); // Refresh every 15 mins
-
-// ---------------------------------- START SERVER ----------------------------------------------
+// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server is listening on port ${PORT}`);
+  console.log(`Backend API running on port ${PORT}`);
 });
