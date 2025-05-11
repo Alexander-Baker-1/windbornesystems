@@ -3,37 +3,30 @@ import BalloonMap from './components/BalloonMap';
 
 function App() {
   const [balloons, setBalloons] = useState([]);
+  const API_URL = process.env.REACT_APP_API_URL;
 
   useEffect(() => {
     const fetchData = async () => {
-      let all = [];
+      try {
+        const res = await fetch(`${API_URL}/api/balloons`);
+        const data = await res.json();
 
-      for (let i = 0; i < 24; i++) {
-        try {
-          const res = await fetch(`https://a.windbornesystems.com/treasure/${String(i).padStart(2, '0')}.json`);
-          const data = await res.json();
+        const cleaned = data.map(b => ({
+          id: b.id,
+          lat: b.lat,
+          lon: b.lon,
+          alt: b.altitude ?? null,
+          time: b.timestamp ?? null,
+        }));
 
-          data.forEach(b => {
-            if (b && b.lat && b.lon && b.id) {
-              all.push({
-                id: b.id,
-                lat: b.lat,
-                lon: b.lon,
-                alt: b.altitude ?? null,
-                time: b.timestamp ?? null,
-              });
-            }
-          });
-        } catch (e) {
-          console.warn(`Failed on ${i}:`, e);
-        }
+        setBalloons(cleaned);
+      } catch (err) {
+        console.error('Failed to fetch balloon data:', err);
       }
-
-      setBalloons(all);
     };
 
     fetchData();
-  }, []);
+  }, [API_URL]);
 
   return <BalloonMap balloonData={balloons} />;
 }
