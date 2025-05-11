@@ -1,13 +1,13 @@
 # -----------------------
 # Node.js Dependencies
 # -----------------------
-node_modules/
+**/node_modules/
 
 # -----------------------
 # Build Output
 # -----------------------
-frontend/build/
-backend/build/
+**/build/
+**/dist/
 
 # -----------------------
 # Environment Variables
@@ -48,4 +48,3 @@ Thumbs.db
 # Misc
 # -----------------------
 coverage/
-dist/
