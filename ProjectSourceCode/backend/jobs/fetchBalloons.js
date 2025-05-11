@@ -1,10 +1,10 @@
-const db = require('../db');
+const db = require('./db');
 
 async function fetchAndStoreBalloons() {
   const useFallback = process.env.NODE_ENV === 'development' || process.env.USE_FAKE_BALLOONS === 'true';
 
   if (useFallback) {
-    console.log('⚠️ Windborne unreachable — inserting fallback balloon data...');
+    console.log('⚠️ Fallback mode active — inserting demo balloon...');
     try {
       await db.none(
         `INSERT INTO balloons (id, lat, lon, altitude, timestamp, hour_index)
