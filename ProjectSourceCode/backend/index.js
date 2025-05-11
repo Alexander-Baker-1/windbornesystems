@@ -7,7 +7,7 @@ const handlebars = require('express-handlebars');
 
 // Local modules
 const db = require('./db');
-const fetchAndStoreBalloons = require('./jobs/fetchBalloons');
+const { fetchAndStoreBalloons } = require('./jobs/fetchBalloons');
 
 const app = express();
 
