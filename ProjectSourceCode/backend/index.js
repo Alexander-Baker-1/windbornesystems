@@ -1,60 +1,45 @@
-const express = require('express');
-const session = require('express-session');
-const bodyParser = require('body-parser');
-const path = require('path');
-const fs = require('fs');
+const db = require('../db');
 
-const db = require('./db');
-const { fetchAndStoreBalloons } = require('./jobs/fetchBalloons');
+async function fetchAndStoreBalloons() {
+  const useFallback = process.env.NODE_ENV === 'development' || process.env.USE_FAKE_BALLOONS === 'true';
 
-const app = express();
-
-// Middleware
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
-
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET || 'dev-secret',
-    saveUninitialized: true,
-    resave: true,
-  })
-);
-
-// API routes
-app.use('/api/balloons', require('./routes/balloons'));
-
-// Run SQL init files
-async function runInitSQL() {
-  try {
-    const createSQL = fs.readFileSync(path.join(__dirname, 'src/init_data/create.sql'), 'utf-8');
-    await db.none(createSQL);
-    console.log('✅ Ran create.sql successfully');
-  } catch (err) {
-    console.error('❌ Failed to run create.sql:', err.message);
-  }
-
-  try {
-    const insertSQL = fs.readFileSync(path.join(__dirname, 'src/init_data/insert.sql'), 'utf-8');
-    if (insertSQL.trim()) {
-      await db.none(insertSQL);
-      console.log('✅ Ran insert.sql successfully');
-    } else {
-      console.log('ℹ️ insert.sql is empty — skipping insert.');
+  if (useFallback) {
+    console.log('⚠️ Fallback mode active — inserting demo balloon...');
+    try {
+      await db.none(
+        `INSERT INTO balloons (id, lat, lon, altitude, timestamp, hour_index)
+         VALUES ('demo123', 39.7392, -104.9903, 10000, NOW(), 0)
+         ON CONFLICT (id, hour_index) DO NOTHING`
+      );
+      console.log('✅ Fallback balloon inserted.');
+    } catch (err) {
+      console.error('❌ Failed to insert fallback balloon:', err.message);
     }
-  } catch (err) {
-    console.error('❌ Failed to run insert.sql:', err.message);
+    return;
   }
+
+  console.log('🚀 Syncing Windborne balloon data...');
+  for (let i = 0; i < 24; i++) {
+    try {
+      const res = await fetch(`https://a.windbornesystems.com/treasure/${String(i).padStart(2, '0')}.json`);
+      const data = await res.json();
+
+      for (const b of data) {
+        if (b?.id && b?.lat && b?.lon) {
+          await db.none(
+            `INSERT INTO balloons (id, lat, lon, altitude, timestamp, hour_index)
+             VALUES ($1, $2, $3, $4, to_timestamp($5 / 1000.0), $6)
+             ON CONFLICT (id, hour_index) DO NOTHING`,
+            [b.id, b.lat, b.lon, b.altitude, b.timestamp, i]
+          );
+        }
+      }
+    } catch (err) {
+      console.error(`❌ Failed fetching hour ${i}:`, err.message);
+    }
+  }
+
+  console.log('✅ Balloon data sync complete');
 }
 
-// Init + background balloon sync
-runInitSQL().then(() => {
-  fetchAndStoreBalloons();
-  setInterval(fetchAndStoreBalloons, 15 * 60 * 1000);
-});
-
-// Start server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Backend API running on port ${PORT}`);
-});
+module.exports = { fetchAndStoreBalloons };

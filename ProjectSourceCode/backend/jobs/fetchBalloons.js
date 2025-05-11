@@ -1,20 +1,24 @@
 const db = require('../db');
 
 async function fetchAndStoreBalloons() {
-  console.log("🚀 Syncing Windborne balloon data...");
+  const useFallback = process.env.NODE_ENV === 'development' || process.env.USE_FAKE_BALLOONS === 'true';
 
-  // Delete old balloon records (older than 24 hours)
-  try {
-    await db.none(`
-      DELETE FROM balloons
-      WHERE timestamp < NOW() - INTERVAL '24 hours'
-    `);
-    console.log("🗑 Old balloon data cleaned up");
-  } catch (err) {
-    console.error("❌ Failed to clean old data:", err.message);
+  if (useFallback) {
+    console.log('⚠️ Windborne unreachable — inserting fallback balloon data...');
+    try {
+      await db.none(
+        `INSERT INTO balloons (id, lat, lon, altitude, timestamp, hour_index)
+         VALUES ('demo123', 39.7392, -104.9903, 10000, NOW(), 0)
+         ON CONFLICT (id, hour_index) DO NOTHING`
+      );
+      console.log('✅ Fallback balloon inserted.');
+    } catch (err) {
+      console.error('❌ Failed to insert fallback balloon:', err.message);
+    }
+    return;
   }
 
-  // Fetch and insert current balloon data
+  console.log('🚀 Syncing Windborne balloon data...');
   for (let i = 0; i < 24; i++) {
     try {
       const res = await fetch(`https://a.windbornesystems.com/treasure/${String(i).padStart(2, '0')}.json`);
@@ -35,7 +39,7 @@ async function fetchAndStoreBalloons() {
     }
   }
 
-  console.log("✅ Balloon data sync complete");
+  console.log('✅ Balloon data sync complete');
 }
 
 module.exports = { fetchAndStoreBalloons };
